@@ -2,19 +2,26 @@ module.exports = {
 	name: 'add',
     description: 'adds reminder for next avaliable day at time\nargs: ?add <user> <chore(use underscore as spaces)> <dayofweek> <remindertime(24hr)>',
 	execute(client, message, args) {
+        //function which gets userID from mention format
+        function getUserID(mention){
+            if (!mention) return;
+
+            var userID;
+            if (mention.startsWith('<@') && mention.endsWith('>')) {
+                userID = mention.slice(2, -1);
+        
+                if (userID.startsWith('!')) {
+                    userID = userID.slice(1);
+                }
+            }
+
+            return userID;
+        }
         //function which gets the user from mention format
         function getUserFromMention(mention) {
             if (!mention) return;
-        
-            if (mention.startsWith('<@') && mention.endsWith('>')) {
-                mention = mention.slice(2, -1);
-        
-                if (mention.startsWith('!')) {
-                    mention = mention.slice(1);
-                }
-        
-                return client.users.get(mention);
-            }
+
+            return client.users.get(getUserID(mention));
         }
         
         //arg count check
@@ -78,11 +85,40 @@ module.exports = {
         if(mindiff<0){ mindiff = mindiff + 60; }
         var sleeptime = daydiff * (1000 * 60 * 60 * 24) + hourdiff * (1000 * 60 * 60) + mindiff * (1000 * 60);
 
-        //queueing command
+        
+        //building JSON for saving data
+        
+        var saveDat = {
+            
+            'day': argsday,
+            'time': args[3],
+            'chore': chores,
+            'active': true,
+            'channel': message.channel.id,
+        };
+        //creating string with user's numeric id
+        
+        
+        var filename = getUserID(args[0])+".json";
+        //writing JSON
+        var fs = require('fs');
+        fs.writeFileSync(`./userdat/${filename}`, JSON.stringify(saveDat, null, 4), function(err) {
+            if (err) {
+                console.log(err);
+            }
+        });
+        //queueing message for specified time        
         var reminder = getUserFromMention(args[0]) + ' it\'s time to ' + chores;
         message.channel.send('Reminder for ' + getUserFromMention(args[0]) + ' to ' + chores + ' at ' + args[3] + ' is set.');
+
         setTimeout(function() {
+            var textdata = fs.readFileSync(`./userdat/${getUserID(args[0])}.json`);
+            var data = JSON.parse(textdata);
+            if(data.active != true){
+                return;
+            }
             message.channel.send(reminder);
+    
             setInterval(function(){message.channel.send(reminder)}, 7*24*60*60*1000);
         }, sleeptime);
         
